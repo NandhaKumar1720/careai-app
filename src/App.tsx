@@ -64,7 +64,7 @@ function AuthFlow() {
   return (
     <LoginPage
       onGoToSignup={() => setScreen('signup')}
-      onGoToForgotPassword={() => setScreen('forgot-password')}
+      onGoToForgotPassword={() => setScreen('forgot')}
       onGoToHome={() => setScreen('landing')}
     />
   );
