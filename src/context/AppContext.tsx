@@ -70,14 +70,39 @@ export interface AppContextValue {
   avatars: Record<string, string>;
   chat: ChatMessage[];
 
-  login: (email: string, password: string, role: UserRole, remember: boolean) => Promise<Result>;
+  login: (
+    email: string,
+    password: string,
+    role: UserRole,
+    remember: boolean
+  ) => Promise<Result>;
+
   logout: () => Promise<void>;
+
   signup: (input: SignupInput) => Promise<Result<User>>;
+
   requestPasswordReset: (email: string) => Promise<Result<string>>;
-  resetPassword: (email: string, code: string, newPassword: string) => Promise<Result>;
+
+  resetPassword: (
+    email: string,
+    code: string,
+    newPassword: string
+  ) => Promise<Result>;
+
   updateProfile: (
-    patch: Partial<Pick<User, 'fullName' | 'username' | 'email' | 'phone' | 'emergencyContactName' | 'emergencyContactPhone' | 'age'>>,
-    avatar?: { dataUrl: string | null },
+    patch: Partial<
+      Pick<
+        User,
+        | 'fullName'
+        | 'username'
+        | 'email'
+        | 'phone'
+        | 'emergencyContactName'
+        | 'emergencyContactPhone'
+        | 'age'
+      >
+    >,
+    avatar?: { dataUrl: string | null }
   ) => Promise<Result>;
 
   connectElderToCaretaker: (code: string) => Promise<Result<Caretaker>>;
@@ -85,9 +110,15 @@ export interface AppContextValue {
   regenerateCaretakerCode: () => Promise<Result<string>>;
 
   addMedicine: (input: MedicineInput) => Promise<Result<Medicine>>;
-  updateMedicine: (id: string, patch: Partial<MedicineInput> & { status?: MedicineStatus }) => Promise<Result>;
+  updateMedicine: (
+    id: string,
+    patch: Partial<MedicineInput> & { status?: MedicineStatus }
+  ) => Promise<Result>;
   deleteMedicine: (id: string) => Promise<Result>;
-  markMedicineStatus: (id: string, status: MedicineStatus) => Promise<Result>;
+  markMedicineStatus: (
+    id: string,
+    status: MedicineStatus
+  ) => Promise<Result>;
   acknowledgeAlert: (id: string) => Promise<Result>;
 
   sendChatMessage: (text: string) => Promise<void>;
@@ -145,6 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               passwordHash: await hashPassword(password),
             })),
           );
+
           await userRepository.saveMany(hashedUsers);
           await medicineRepository.saveMany(seedMedicines);
           await reminderRepository.saveMany(seedLogs);
@@ -175,13 +207,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const rolled = rollOverAll(loadedMedicines);
         const outcome = applyExpiries(rolled, loadedUsers);
+
         if (outcome.changed) {
           await medicineRepository.saveMany(outcome.medicines);
-          if (outcome.newLogs.length) await reminderRepository.saveMany(outcome.newLogs);
-          if (outcome.newAlerts.length) await alertRepository.saveMany(outcome.newAlerts);
+
+          if (outcome.newLogs.length) {
+            await reminderRepository.saveMany(outcome.newLogs);
+          }
+
+          if (outcome.newAlerts.length) {
+            await alertRepository.saveMany(outcome.newAlerts);
+          }
         }
 
         const avatarMap: Record<string, string> = {};
+
         loadedAvatars.forEach((avatar) => {
           avatarMap[avatar.id] = avatar.dataUrl;
         });
@@ -194,24 +234,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setChat(loadedChat);
         setAvatars(avatarMap);
         setRememberedEmail(settings.rememberedEmail);
+
         setCurrentUserId(
-          settings.sessionUserId && loadedUsers.some((user) => user.id === settings.sessionUserId)
+          settings.sessionUserId &&
+            loadedUsers.some(
+              (user) => user.id === settings.sessionUserId,
+            )
             ? settings.sessionUserId
             : null,
         );
+
         setReady(true);
       } catch (error) {
         if (cancelled) return;
+
         setLoadError(
           error instanceof Error
             ? error.message
             : 'CareAI could not open its local database in this browser.',
         );
+
         setReady(true);
       }
     }
 
     void boot();
+
     return () => {
       cancelled = true;
     };
@@ -222,17 +270,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const elderFor = useCallback(
     (elderId: string): Elder | null => {
       const user = users.find((item) => item.id === elderId);
-      return user && user.role === 'elder' ? (user as Elder) : null;
+
+      return user && user.role === 'elder'
+        ? (user as Elder)
+        : null;
     },
     [users],
   );
 
   const caretakerForElder = useCallback(
     (elderId: string): Caretaker | null => {
-      const relationship = relationships.find((item) => item.elderId === elderId);
+      const relationship = relationships.find(
+        (item) => item.elderId === elderId,
+      );
+
       if (!relationship) return null;
-      const user = users.find((item) => item.id === relationship.caretakerId);
-      return user && user.role === 'caretaker' ? (user as Caretaker) : null;
+
+      const user = users.find(
+        (item) => item.id === relationship.caretakerId,
+      );
+
+      return user && user.role === 'caretaker'
+        ? (user as Caretaker)
+        : null;
     },
     [relationships, users],
   );
@@ -240,52 +300,96 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const eldersForCaretaker = useCallback(
     (caretakerId: string): Elder[] =>
       relationships
-        .filter((relationship) => relationship.caretakerId === caretakerId)
+        .filter(
+          (relationship) =>
+            relationship.caretakerId === caretakerId,
+        )
         .map((relationship) => elderFor(relationship.elderId))
-        .filter((elder): elder is Elder => elder !== null),
+        .filter(
+          (elder): elder is Elder => elder !== null,
+        ),
     [relationships, elderFor],
   );
 
   const medicinesFor = useCallback(
-    (elderId: string) => medicinesForElder(medicines, elderId),
+    (elderId: string) =>
+      medicinesForElder(medicines, elderId),
     [medicines],
   );
 
   const summariesForCaretaker = useCallback(
     (caretakerId: string): ElderSummary[] =>
-      eldersForCaretaker(caretakerId).map((elder) => summarizeElder(elder, medicines, alerts)),
+      eldersForCaretaker(caretakerId).map((elder) =>
+        summarizeElder(elder, medicines, alerts),
+      ),
     [eldersForCaretaker, medicines, alerts],
   );
 
   /* ---------------------------------------------------------------- auth */
 
   const login = useCallback(
-    async (email: string, password: string, role: UserRole, remember: boolean): Promise<Result> => {
+    async (
+      email: string,
+      password: string,
+      role: UserRole,
+      remember: boolean,
+    ): Promise<Result> => {
       const normalized = normalizeEmail(email);
-      const user = users.find((item) => normalizeEmail(item.email) === normalized);
-      if (!user) return { ok: false, error: 'No account uses that email address.' };
+
+      const user = users.find(
+        (item) => normalizeEmail(item.email) === normalized,
+      );
+
+      if (!user) {
+        return {
+          ok: false,
+          error: 'No account uses that email address.',
+        };
+      }
+
       if (user.role !== role) {
         return {
           ok: false,
           error: `That account is registered as a ${user.role}. Choose ${user.role} above and sign in again.`,
         };
       }
-      const valid = await verifyPassword(password, user.passwordHash);
-      if (!valid) return { ok: false, error: 'That password does not match this account.' };
+
+      const valid = await verifyPassword(
+        password,
+        user.passwordHash,
+      );
+
+      if (!valid) {
+        return {
+          ok: false,
+          error: 'That password does not match this account.',
+        };
+      }
 
       await settingsRepository.write({
         sessionUserId: user.id,
         rememberedEmail: remember ? user.email : null,
       });
-      setRememberedEmail(remember ? user.email : null);
+
+      setRememberedEmail(
+        remember ? user.email : null,
+      );
+
       setCurrentUserId(user.id);
-      return { ok: true, data: undefined };
+
+      return {
+        ok: true,
+        data: undefined,
+      };
     },
     [users],
   );
 
   const logout = useCallback(async () => {
-    await settingsRepository.write({ sessionUserId: null });
+    await settingsRepository.write({
+      sessionUserId: null,
+    });
+
     setCurrentUserId(null);
   }, []);
 
@@ -295,46 +399,113 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const username = normalizeUsername(input.username);
       const phone = normalizePhone(input.phone);
 
-      if (users.some((user) => normalizeEmail(user.email) === email)) {
-        return { ok: false, error: 'An account already uses that email address.' };
+      if (
+        users.some(
+          (user) => normalizeEmail(user.email) === email,
+        )
+      ) {
+        return {
+          ok: false,
+          error: 'An account already uses that email address.',
+        };
       }
-      if (users.some((user) => normalizeUsername(user.username) === username)) {
-        return { ok: false, error: 'That username is taken. Choose another one.' };
+
+      if (
+        users.some(
+          (user) =>
+            normalizeUsername(user.username) === username,
+        )
+      ) {
+        return {
+          ok: false,
+          error: 'That username is taken. Choose another one.',
+        };
       }
-      if (users.some((user) => normalizePhone(user.phone) === phone)) {
-        return { ok: false, error: 'An account already uses that phone number.' };
+
+      if (
+        users.some(
+          (user) => normalizePhone(user.phone) === phone,
+        )
+      ) {
+        return {
+          ok: false,
+          error: 'An account already uses that phone number.',
+        };
       }
 
       let targetCaretaker: Caretaker | null = null;
-      if (input.role === 'elder' && input.caretakerCode.trim()) {
-        const code = formatCaretakerCode(input.caretakerCode);
+
+      if (
+        input.role === 'elder' &&
+        input.caretakerCode.trim()
+      ) {
+        const code = formatCaretakerCode(
+          input.caretakerCode,
+        );
+
         if (!isCaretakerCodeShaped(code)) {
-          return { ok: false, error: 'Caretaker codes look like CARE-7F29K4. Check the code and try again.' };
+          return {
+            ok: false,
+            error:
+              'Caretaker codes look like CARE-7F29K4. Check the code and try again.',
+          };
         }
-        const found = users.find((user) => user.role === 'caretaker' && user.caretakerCode === code);
-        if (!found) return { ok: false, error: 'No caretaker uses that code.' };
-        const count = relationships.filter((item) => item.caretakerId === found.id).length;
+
+        const found = users.find(
+          (user) =>
+            user.role === 'caretaker' &&
+            user.caretakerCode === code,
+        );
+
+        if (!found) {
+          return {
+            ok: false,
+            error: 'No caretaker uses that code.',
+          };
+        }
+
+        const count = relationships.filter(
+          (item) => item.caretakerId === found.id,
+        ).length;
+
         if (count >= MAX_ELDERS_PER_CARETAKER) {
           return {
             ok: false,
             error: `This caretaker is currently supervising the maximum of ${MAX_ELDERS_PER_CARETAKER} elders.`,
           };
         }
+
         targetCaretaker = found as Caretaker;
       }
 
       const userId = createId('user');
+
       let avatarId: string | null = null;
+
       if (input.avatarDataUrl) {
         avatarId = createId('avatar');
-        await avatarRepository.save({ id: avatarId, dataUrl: input.avatarDataUrl });
-        setAvatars((current) => ({ ...current, [avatarId as string]: input.avatarDataUrl as string }));
+
+        await avatarRepository.save({
+          id: avatarId,
+          dataUrl: input.avatarDataUrl,
+        });
+
+        setAvatars((current) => ({
+          ...current,
+          [avatarId as string]:
+            input.avatarDataUrl as string,
+        }));
       }
 
       const caretakerCode =
         input.role === 'caretaker'
           ? generateCaretakerCode(
-              users.map((user) => user.caretakerCode).filter((code): code is string => Boolean(code)),
+              users
+                .map((user) => user.caretakerCode)
+                .filter(
+                  (code): code is string =>
+                    Boolean(code),
+                ),
             )
           : null;
 
@@ -347,15 +518,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         passwordHash: await hashPassword(input.password),
         role: input.role,
         avatarId,
-        emergencyContactName: input.emergencyContactName.trim(),
-        emergencyContactPhone: input.emergencyContactPhone.trim(),
+        emergencyContactName:
+          input.emergencyContactName.trim(),
+        emergencyContactPhone:
+          input.emergencyContactPhone.trim(),
         caretakerCode,
         age: input.age,
         createdAt: new Date().toISOString(),
       };
 
       await userRepository.save(user);
-      setUsers((current) => [...current, user]);
+
+      setUsers((current) => [
+        ...current,
+        user,
+      ]);
 
       if (targetCaretaker) {
         const relationship: Relationship = {
@@ -364,13 +541,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
           caretakerId: targetCaretaker.id,
           createdAt: new Date().toISOString(),
         };
-        await relationshipRepository.save(relationship);
-        setRelationships((current) => [...current, relationship]);
+
+        await relationshipRepository.save(
+          relationship,
+        );
+
+        setRelationships((current) => [
+          ...current,
+          relationship,
+        ]);
       }
 
-      await settingsRepository.write({ sessionUserId: user.id });
+      await settingsRepository.write({
+        sessionUserId: user.id,
+      });
+
       setCurrentUserId(user.id);
-      return { ok: true, data: user };
+
+      return {
+        ok: true,
+        data: user,
+      };
     },
     [users, relationships],
   );
@@ -378,93 +569,253 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const requestPasswordReset = useCallback(
     async (email: string): Promise<Result<string>> => {
       const normalized = normalizeEmail(email);
-      const user = users.find((item) => normalizeEmail(item.email) === normalized);
-      if (!user) return { ok: false, error: 'No account uses that email address.' };
-      const code = randomToken(6, '0123456789');
+
+      const user = users.find(
+        (item) => normalizeEmail(item.email) === normalized,
+      );
+
+      if (!user) {
+        return {
+          ok: false,
+          error: 'No account uses that email address.',
+        };
+      }
+
+      const code = randomToken(
+        6,
+        '0123456789',
+      );
+
       pendingResets.current.set(normalized, {
         userId: user.id,
         code,
-        expiresAt: Date.now() + RESET_CODE_TTL_MS,
+        expiresAt:
+          Date.now() + RESET_CODE_TTL_MS,
       });
-      return { ok: true, data: code };
+
+      return {
+        ok: true,
+        data: code,
+      };
     },
     [users],
   );
 
   const resetPassword = useCallback(
-    async (email: string, code: string, newPassword: string): Promise<Result> => {
+    async (
+      email: string,
+      code: string,
+      newPassword: string,
+    ): Promise<Result> => {
       const normalized = normalizeEmail(email);
-      const pending = pendingResets.current.get(normalized);
-      if (!pending) return { ok: false, error: 'Start again — this reset request is no longer active.' };
+
+      const pending =
+        pendingResets.current.get(normalized);
+
+      if (!pending) {
+        return {
+          ok: false,
+          error:
+            'Start again — this reset request is no longer active.',
+        };
+      }
+
       if (Date.now() > pending.expiresAt) {
         pendingResets.current.delete(normalized);
-        return { ok: false, error: 'That reset code has expired. Request a new one.' };
+
+        return {
+          ok: false,
+          error:
+            'That reset code has expired. Request a new one.',
+        };
       }
-      if (pending.code !== code.trim()) return { ok: false, error: 'That reset code is not correct.' };
 
-      const user = users.find((item) => item.id === pending.userId);
-      if (!user) return { ok: false, error: 'That account no longer exists.' };
+      if (pending.code !== code.trim()) {
+        return {
+          ok: false,
+          error: 'That reset code is not correct.',
+        };
+      }
 
-      const updated: User = { ...user, passwordHash: await hashPassword(newPassword) };
+      const user = users.find(
+        (item) => item.id === pending.userId,
+      );
+
+      if (!user) {
+        return {
+          ok: false,
+          error: 'That account no longer exists.',
+        };
+      }
+
+      const updated: User = {
+        ...user,
+        passwordHash:
+          await hashPassword(newPassword),
+      };
+
       await userRepository.save(updated);
-      setUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+
+      setUsers((current) =>
+        current.map((item) =>
+          item.id === updated.id
+            ? updated
+            : item,
+        ),
+      );
+
       pendingResets.current.delete(normalized);
-      return { ok: true, data: undefined };
+
+      return {
+        ok: true,
+        data: undefined,
+      };
     },
     [users],
   );
 
   const updateProfile = useCallback(
     async (
-      patch: Partial<Pick<User, 'fullName' | 'username' | 'email' | 'phone' | 'emergencyContactName' | 'emergencyContactPhone' | 'age'>>,
+      patch: Partial<
+        Pick<
+          User,
+          | 'fullName'
+          | 'username'
+          | 'email'
+          | 'phone'
+          | 'emergencyContactName'
+          | 'emergencyContactPhone'
+          | 'age'
+        >
+      >,
       avatar?: { dataUrl: string | null },
     ): Promise<Result> => {
-      if (!currentUser) return { ok: false, error: 'Sign in first.' };
+      if (!currentUser) {
+        return {
+          ok: false,
+          error: 'Sign in first.',
+        };
+      }
 
       if (patch.email !== undefined) {
-        const email = normalizeEmail(patch.email);
-        if (users.some((user) => user.id !== currentUser.id && normalizeEmail(user.email) === email)) {
-          return { ok: false, error: 'An account already uses that email address.' };
+        const email = normalizeEmail(
+          patch.email,
+        );
+
+        if (
+          users.some(
+            (user) =>
+              user.id !== currentUser.id &&
+              normalizeEmail(user.email) === email,
+          )
+        ) {
+          return {
+            ok: false,
+            error:
+              'An account already uses that email address.',
+          };
         }
       }
+
       if (patch.username !== undefined) {
-        const username = normalizeUsername(patch.username);
-        if (users.some((user) => user.id !== currentUser.id && normalizeUsername(user.username) === username)) {
-          return { ok: false, error: 'That username is taken. Choose another one.' };
+        const username = normalizeUsername(
+          patch.username,
+        );
+
+        if (
+          users.some(
+            (user) =>
+              user.id !== currentUser.id &&
+              normalizeUsername(user.username) ===
+                username,
+          )
+        ) {
+          return {
+            ok: false,
+            error:
+              'That username is taken. Choose another one.',
+          };
         }
       }
+
       if (patch.phone !== undefined) {
-        const phone = normalizePhone(patch.phone);
-        if (users.some((user) => user.id !== currentUser.id && normalizePhone(user.phone) === phone)) {
-          return { ok: false, error: 'An account already uses that phone number.' };
+        const phone = normalizePhone(
+          patch.phone,
+        );
+
+        if (
+          users.some(
+            (user) =>
+              user.id !== currentUser.id &&
+              normalizePhone(user.phone) === phone,
+          )
+        ) {
+          return {
+            ok: false,
+            error:
+              'An account already uses that phone number.',
+          };
         }
       }
 
       let avatarId = currentUser.avatarId;
+
       if (avatar) {
         if (avatar.dataUrl === null) {
           if (avatarId) {
             const removedId = avatarId;
-            await avatarRepository.remove(removedId);
+
+            await avatarRepository.remove(
+              removedId,
+            );
+
             setAvatars((current) => {
               const next = { ...current };
               delete next[removedId];
               return next;
             });
           }
+
           avatarId = null;
         } else {
-          const nextId = avatarId ?? createId('avatar');
-          await avatarRepository.save({ id: nextId, dataUrl: avatar.dataUrl });
-          setAvatars((current) => ({ ...current, [nextId]: avatar.dataUrl as string }));
+          const nextId =
+            avatarId ?? createId('avatar');
+
+          await avatarRepository.save({
+            id: nextId,
+            dataUrl: avatar.dataUrl,
+          });
+
+          setAvatars((current) => ({
+            ...current,
+            [nextId]:
+              avatar.dataUrl as string,
+          }));
+
           avatarId = nextId;
         }
       }
 
-      const updated: User = { ...currentUser, ...patch, avatarId };
+      const updated: User = {
+        ...currentUser,
+        ...patch,
+        avatarId,
+      };
+
       await userRepository.save(updated);
-      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
-      return { ok: true, data: undefined };
+
+      setUsers((current) =>
+        current.map((user) =>
+          user.id === updated.id
+            ? updated
+            : user,
+        ),
+      );
+
+      return {
+        ok: true,
+        data: undefined,
+      };
     },
     [currentUser, users],
   );
@@ -472,30 +823,93 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /* -------------------------------------------------------- connections */
 
   const connectElderToCaretaker = useCallback(
-    async (code: string): Promise<Result<Caretaker>> => {
-      if (!currentUser || currentUser.role !== 'elder') {
-        return { ok: false, error: 'Only an elder account can connect to a caretaker.' };
+    async (
+      code: string,
+    ): Promise<Result<Caretaker>> => {
+      if (
+        !currentUser ||
+        currentUser.role !== 'elder'
+      ) {
+        return {
+          ok: false,
+          error:
+            'Only an elder account can connect to a caretaker.',
+        };
       }
-      if (relationships.some((item) => item.elderId === currentUser.id)) {
-        return { ok: false, error: 'You are already connected to a caretaker.' };
-      }
-      const formatted = formatCaretakerCode(code);
-      if (!isCaretakerCodeShaped(formatted)) {
-        return { ok: false, error: 'Caretaker codes look like CARE-7F29K4. Check the code and try again.' };
-      }
-      const caretaker = users.find((user) => user.role === 'caretaker' && user.caretakerCode === formatted);
-      if (!caretaker) return { ok: false, error: 'No caretaker uses that code.' };
 
-      const count = relationships.filter((item) => item.caretakerId === caretaker.id).length;
-      if (count >= MAX_ELDERS_PER_CARETAKER) {
+      if (
+        relationships.some(
+          (item) =>
+            item.elderId === currentUser.id,
+        )
+      ) {
+        return {
+          ok: false,
+          error:
+            'You are already connected to a caretaker.',
+        };
+      }
+
+      const formatted = formatCaretakerCode(code);
+
+      if (!isCaretakerCodeShaped(formatted)) {
+        return {
+          ok: false,
+          error:
+            'Caretaker codes look like CARE-7F29K4. Check the code and try again.',
+        };
+      }
+
+      const caretaker = users.find(
+        (user) =>
+          user.role === 'caretaker' &&
+          user.caretakerCode === formatted,
+      );
+
+      if (!caretaker) {
+        return {
+          ok: false,
+          error: 'No caretaker uses that code.',
+        };
+      }
+
+      const count = relationships.filter(
+        (item) =>
+          item.caretakerId === caretaker.id,
+      ).length;
+
+      if (
+        count >= MAX_ELDERS_PER_CARETAKER
+      ) {
         return {
           ok: false,
           error: `This caretaker is currently supervising the maximum of ${MAX_ELDERS_PER_CARETAKER} elders.`,
         };
       }
 
-      // Ensure clean state before writing the new relationship
-      await relationshipRepository.disconnectElderFromCaretaker(currentUser.id);
+      /*
+       * Clean up any stale relationships for this elder.
+       * relationshipRepository does not provide a
+       * disconnectElderFromCaretaker method, so we use
+       * the existing list/remove API.
+       */
+      const storedRelationships =
+        await relationshipRepository.list();
+
+      const staleRelationships =
+        storedRelationships.filter(
+          (relationship) =>
+            relationship.elderId ===
+            currentUser.id,
+        );
+
+      await Promise.all(
+        staleRelationships.map((relationship) =>
+          relationshipRepository.remove(
+            relationship.id,
+          ),
+        ),
+      );
 
       const relationship: Relationship = {
         id: createId('rel'),
@@ -503,145 +917,411 @@ export function AppProvider({ children }: { children: ReactNode }) {
         caretakerId: caretaker.id,
         createdAt: new Date().toISOString(),
       };
-      await relationshipRepository.save(relationship);
+
+      await relationshipRepository.save(
+        relationship,
+      );
+
       setRelationships((current) => [
-        ...current.filter((item) => item.elderId !== currentUser.id),
+        ...current.filter(
+          (item) =>
+            item.elderId !== currentUser.id,
+        ),
         relationship,
       ]);
-      return { ok: true, data: caretaker as Caretaker };
+
+      return {
+        ok: true,
+        data: caretaker as Caretaker,
+      };
     },
     [currentUser, relationships, users],
   );
 
-  const disconnectCaretaker = useCallback(async (): Promise<Result> => {
-    if (!currentUser || currentUser.role !== 'elder') {
-      return { ok: false, error: 'Only an elder account can disconnect a caretaker.' };
-    }
-    const hasConnection = relationships.some((item) => item.elderId === currentUser.id);
-    if (!hasConnection) return { ok: false, error: 'You are not connected to a caretaker.' };
+  const disconnectCaretaker =
+    useCallback(async (): Promise<Result> => {
+      if (
+        !currentUser ||
+        currentUser.role !== 'elder'
+      ) {
+        return {
+          ok: false,
+          error:
+            'Only an elder account can disconnect a caretaker.',
+        };
+      }
 
-    // Remove all relationships belonging to this elder from IndexedDB
-    await relationshipRepository.disconnectElderFromCaretaker(currentUser.id);
+      const hasConnection =
+        relationships.some(
+          (item) =>
+            item.elderId === currentUser.id,
+        );
 
-    // Update React state immediately
-    setRelationships((current) => current.filter((item) => item.elderId !== currentUser.id));
-    return { ok: true, data: undefined };
-  }, [currentUser, relationships]);
+      if (!hasConnection) {
+        return {
+          ok: false,
+          error:
+            'You are not connected to a caretaker.',
+        };
+      }
 
-  const regenerateCaretakerCode = useCallback(async (): Promise<Result<string>> => {
-    if (!currentUser || currentUser.role !== 'caretaker') {
-      return { ok: false, error: 'Only a caretaker account has a connection code.' };
-    }
-    if (relationships.some((item) => item.caretakerId === currentUser.id)) {
+      /*
+       * Remove all relationships belonging to this
+       * elder from IndexedDB using the repository's
+       * existing list/remove API.
+       */
+      const storedRelationships =
+        await relationshipRepository.list();
+
+      const elderRelationships =
+        storedRelationships.filter(
+          (relationship) =>
+            relationship.elderId ===
+            currentUser.id,
+        );
+
+      await Promise.all(
+        elderRelationships.map((relationship) =>
+          relationshipRepository.remove(
+            relationship.id,
+          ),
+        ),
+      );
+
+      /* Update React state immediately */
+      setRelationships((current) =>
+        current.filter(
+          (item) =>
+            item.elderId !== currentUser.id,
+        ),
+      );
+
       return {
-        ok: false,
-        error: 'Disconnect your elders before creating a new code, so nobody loses their link to you.',
+        ok: true,
+        data: undefined,
       };
-    }
-    const code = generateCaretakerCode(
-      users.map((user) => user.caretakerCode).filter((value): value is string => Boolean(value)),
-    );
-    const updated: User = { ...currentUser, caretakerCode: code };
-    await userRepository.save(updated);
-    setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
-    return { ok: true, data: code };
-  }, [currentUser, relationships, users]);
+    }, [currentUser, relationships]);
+
+  const regenerateCaretakerCode =
+    useCallback(async (): Promise<Result<string>> => {
+      if (
+        !currentUser ||
+        currentUser.role !== 'caretaker'
+      ) {
+        return {
+          ok: false,
+          error:
+            'Only a caretaker account has a connection code.',
+        };
+      }
+
+      if (
+        relationships.some(
+          (item) =>
+            item.caretakerId ===
+            currentUser.id,
+        )
+      ) {
+        return {
+          ok: false,
+          error:
+            'Disconnect your elders before creating a new code, so nobody loses their link to you.',
+        };
+      }
+
+      const code =
+        generateCaretakerCode(
+          users
+            .map(
+              (user) =>
+                user.caretakerCode,
+            )
+            .filter(
+              (value): value is string =>
+                Boolean(value),
+            ),
+        );
+
+      const updated: User = {
+        ...currentUser,
+        caretakerCode: code,
+      };
+
+      await userRepository.save(updated);
+
+      setUsers((current) =>
+        current.map((user) =>
+          user.id === updated.id
+            ? updated
+            : user,
+        ),
+      );
+
+      return {
+        ok: true,
+        data: code,
+      };
+    }, [currentUser, relationships, users]);
 
   /* ----------------------------------------------------------- medicines */
 
-  const addMedicine = useCallback(async (input: MedicineInput): Promise<Result<Medicine>> => {
-    const medicine: Medicine = {
-      id: createId('med'),
-      elderId: input.elderId,
-      name: input.name.trim(),
-      dose: input.dose.trim(),
-      time: input.time,
-      status: 'scheduled',
-      frequency: input.frequency,
-      notes: input.notes.trim(),
-      statusDate: todayKey(),
-      createdAt: new Date().toISOString(),
-    };
-    await medicineRepository.save(medicine);
-    setMedicines((current) => [...current, medicine]);
-    return { ok: true, data: medicine };
-  }, []);
+  const addMedicine = useCallback(
+    async (
+      input: MedicineInput,
+    ): Promise<Result<Medicine>> => {
+      const medicine: Medicine = {
+        id: createId('med'),
+        elderId: input.elderId,
+        name: input.name.trim(),
+        dose: input.dose.trim(),
+        time: input.time,
+        status: 'scheduled',
+        frequency: input.frequency,
+        notes: input.notes.trim(),
+        statusDate: todayKey(),
+        createdAt: new Date().toISOString(),
+      };
+
+      await medicineRepository.save(medicine);
+
+      setMedicines((current) => [
+        ...current,
+        medicine,
+      ]);
+
+      return {
+        ok: true,
+        data: medicine,
+      };
+    },
+    [],
+  );
 
   const updateMedicine = useCallback(
-    async (id: string, patch: Partial<MedicineInput> & { status?: MedicineStatus }): Promise<Result> => {
-      const existing = medicines.find((medicine) => medicine.id === id);
-      if (!existing) return { ok: false, error: 'That medicine no longer exists.' };
+    async (
+      id: string,
+      patch: Partial<MedicineInput> & {
+        status?: MedicineStatus;
+      },
+    ): Promise<Result> => {
+      const existing = medicines.find(
+        (medicine) =>
+          medicine.id === id,
+      );
+
+      if (!existing) {
+        return {
+          ok: false,
+          error:
+            'That medicine no longer exists.',
+        };
+      }
+
       const updated: Medicine = {
         ...existing,
         ...patch,
-        name: (patch.name ?? existing.name).trim(),
-        dose: (patch.dose ?? existing.dose).trim(),
-        notes: (patch.notes ?? existing.notes).trim(),
+        name: (
+          patch.name ??
+          existing.name
+        ).trim(),
+        dose: (
+          patch.dose ??
+          existing.dose
+        ).trim(),
+        notes: (
+          patch.notes ??
+          existing.notes
+        ).trim(),
         statusDate: todayKey(),
       };
-      await medicineRepository.save(updated);
-      setMedicines((current) => current.map((medicine) => (medicine.id === id ? updated : medicine)));
-      return { ok: true, data: undefined };
+
+      await medicineRepository.save(
+        updated,
+      );
+
+      setMedicines((current) =>
+        current.map((medicine) =>
+          medicine.id === id
+            ? updated
+            : medicine,
+        ),
+      );
+
+      return {
+        ok: true,
+        data: undefined,
+      };
     },
     [medicines],
   );
 
-  const deleteMedicine = useCallback(async (id: string): Promise<Result> => {
-    await medicineRepository.remove(id);
-    setMedicines((current) => current.filter((medicine) => medicine.id !== id));
-    return { ok: true, data: undefined };
-  }, []);
+  const deleteMedicine = useCallback(
+    async (id: string): Promise<Result> => {
+      await medicineRepository.remove(id);
+
+      setMedicines((current) =>
+        current.filter(
+          (medicine) =>
+            medicine.id !== id,
+        ),
+      );
+
+      return {
+        ok: true,
+        data: undefined,
+      };
+    },
+    [],
+  );
 
   const markMedicineStatus = useCallback(
-    async (id: string, status: MedicineStatus): Promise<Result> => {
-      const existing = medicines.find((medicine) => medicine.id === id);
-      if (!existing) return { ok: false, error: 'That medicine no longer exists.' };
+    async (
+      id: string,
+      status: MedicineStatus,
+    ): Promise<Result> => {
+      const existing = medicines.find(
+        (medicine) =>
+          medicine.id === id,
+      );
 
-      const updated: Medicine = { ...existing, status, statusDate: todayKey() };
-      const log = createLog(updated, status);
-      const elder = users.find((user) => user.id === updated.elderId);
+      if (!existing) {
+        return {
+          ok: false,
+          error:
+            'That medicine no longer exists.',
+        };
+      }
 
-      await medicineRepository.save(updated);
+      const updated: Medicine = {
+        ...existing,
+        status,
+        statusDate: todayKey(),
+      };
+
+      const log = createLog(
+        updated,
+        status,
+      );
+
+      const elder = users.find(
+        (user) =>
+          user.id === updated.elderId,
+      );
+
+      await medicineRepository.save(
+        updated,
+      );
+
       await reminderRepository.save(log);
 
-      setMedicines((current) => current.map((medicine) => (medicine.id === id ? updated : medicine)));
-      setLogs((current) => [...current, log]);
+      setMedicines((current) =>
+        current.map((medicine) =>
+          medicine.id === id
+            ? updated
+            : medicine,
+        ),
+      );
+
+      setLogs((current) => [
+        ...current,
+        log,
+      ]);
 
       if (status === 'not_taken') {
-        const alert = createNotTakenAlert(updated, elder ? elder.fullName : 'Elder');
-        await alertRepository.save(alert);
-        setAlerts((current) => [...current, alert]);
+        const alert =
+          createNotTakenAlert(
+            updated,
+            elder
+              ? elder.fullName
+              : 'Elder',
+          );
+
+        await alertRepository.save(
+          alert,
+        );
+
+        setAlerts((current) => [
+          ...current,
+          alert,
+        ]);
       }
 
       if (status === 'taken') {
         const stale = alerts.filter(
-          (alert) => alert.medicineId === updated.id && !alert.acknowledged,
+          (alert) =>
+            alert.medicineId ===
+              updated.id &&
+            !alert.acknowledged,
         );
+
         if (stale.length) {
-          const acknowledged = stale.map((alert) => ({ ...alert, acknowledged: true }));
-          await alertRepository.saveMany(acknowledged);
+          const acknowledged =
+            stale.map((alert) => ({
+              ...alert,
+              acknowledged: true,
+            }));
+
+          await alertRepository.saveMany(
+            acknowledged,
+          );
+
           setAlerts((current) =>
             current.map((alert) => {
-              const match = acknowledged.find((item) => item.id === alert.id);
+              const match =
+                acknowledged.find(
+                  (item) =>
+                    item.id === alert.id,
+                );
+
               return match ?? alert;
             }),
           );
         }
       }
 
-      return { ok: true, data: undefined };
+      return {
+        ok: true,
+        data: undefined,
+      };
     },
     [medicines, users, alerts],
   );
 
   const acknowledgeAlert = useCallback(
-    async (id: string): Promise<Result> => {
-      const alert = alerts.find((item) => item.id === id);
-      if (!alert) return { ok: false, error: 'That alert no longer exists.' };
-      const updated: Alert = { ...alert, acknowledged: true };
+    async (
+      id: string,
+    ): Promise<Result> => {
+      const alert = alerts.find(
+        (item) => item.id === id,
+      );
+
+      if (!alert) {
+        return {
+          ok: false,
+          error:
+            'That alert no longer exists.',
+        };
+      }
+
+      const updated: Alert = {
+        ...alert,
+        acknowledged: true,
+      };
+
       await alertRepository.save(updated);
-      setAlerts((current) => current.map((item) => (item.id === id ? updated : item)));
-      return { ok: true, data: undefined };
+
+      setAlerts((current) =>
+        current.map((item) =>
+          item.id === id
+            ? updated
+            : item,
+        ),
+      );
+
+      return {
+        ok: true,
+        data: undefined,
+      };
     },
     [alerts],
   );
@@ -651,7 +1331,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const sendChatMessage = useCallback(
     async (text: string) => {
       if (!currentUser) return;
+
       const now = new Date();
+
       const question: ChatMessage = {
         id: createId('msg'),
         userId: currentUser.id,
@@ -663,54 +1345,136 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const scopeElderId =
         currentUser.role === 'elder'
           ? currentUser.id
-          : (relationships.find((item) => item.caretakerId === currentUser.id)?.elderId ?? null);
+          : (
+              relationships.find(
+                (item) =>
+                  item.caretakerId ===
+                  currentUser.id,
+              )?.elderId ?? null
+            );
 
-      const scopedMedicines = scopeElderId ? medicinesForElder(medicines, scopeElderId) : [];
-      const caretaker = currentUser.role === 'elder' ? caretakerForElder(currentUser.id) : null;
+      const scopedMedicines =
+        scopeElderId
+          ? medicinesForElder(
+              medicines,
+              scopeElderId,
+            )
+          : [];
 
-      const replyText = answerCareAI(question.text, {
-        user: currentUser,
-        medicines: scopedMedicines,
-        alerts: alerts.filter((alert) => !scopeElderId || alert.elderId === scopeElderId),
-        caretakerName: caretaker ? caretaker.fullName : null,
-        caretakerPhone: caretaker ? caretaker.phone : null,
-        now,
-      });
+      const caretaker =
+        currentUser.role === 'elder'
+          ? caretakerForElder(
+              currentUser.id,
+            )
+          : null;
+
+      const replyText = answerCareAI(
+        question.text,
+        {
+          user: currentUser,
+          medicines: scopedMedicines,
+          alerts: alerts.filter(
+            (alert) =>
+              !scopeElderId ||
+              alert.elderId ===
+                scopeElderId,
+          ),
+          caretakerName: caretaker
+            ? caretaker.fullName
+            : null,
+          caretakerPhone: caretaker
+            ? caretaker.phone
+            : null,
+          now,
+        },
+      );
 
       const reply: ChatMessage = {
         id: createId('msg'),
         userId: currentUser.id,
         sender: 'assistant',
         text: replyText,
-        timestamp: new Date().toISOString(),
+        timestamp:
+          new Date().toISOString(),
       };
 
-      await chatRepository.save(question);
-      await chatRepository.save(reply);
-      setChat((current) => [...current, question, reply]);
+      await chatRepository.save(
+        question,
+      );
+
+      await chatRepository.save(
+        reply,
+      );
+
+      setChat((current) => [
+        ...current,
+        question,
+        reply,
+      ]);
     },
-    [currentUser, relationships, medicines, alerts, caretakerForElder],
+    [
+      currentUser,
+      relationships,
+      medicines,
+      alerts,
+      caretakerForElder,
+    ],
   );
 
   /* --------------------------------------------------------- expiry loop */
 
-  const runExpiryCheck = useCallback(async () => {
-    const outcome = applyExpiries(medicines, users);
-    if (!outcome.changed) return;
-    await medicineRepository.saveMany(outcome.medicines);
-    if (outcome.newLogs.length) await reminderRepository.saveMany(outcome.newLogs);
-    if (outcome.newAlerts.length) await alertRepository.saveMany(outcome.newAlerts);
-    setMedicines(outcome.medicines);
-    if (outcome.newLogs.length) setLogs((current) => [...current, ...outcome.newLogs]);
-    if (outcome.newAlerts.length) setAlerts((current) => [...current, ...outcome.newAlerts]);
-  }, [medicines, users]);
+  const runExpiryCheck = useCallback(
+    async () => {
+      const outcome = applyExpiries(
+        medicines,
+        users,
+      );
+
+      if (!outcome.changed) return;
+
+      await medicineRepository.saveMany(
+        outcome.medicines,
+      );
+
+      if (outcome.newLogs.length) {
+        await reminderRepository.saveMany(
+          outcome.newLogs,
+        );
+      }
+
+      if (outcome.newAlerts.length) {
+        await alertRepository.saveMany(
+          outcome.newAlerts,
+        );
+      }
+
+      setMedicines(outcome.medicines);
+
+      if (outcome.newLogs.length) {
+        setLogs((current) => [
+          ...current,
+          ...outcome.newLogs,
+        ]);
+      }
+
+      if (outcome.newAlerts.length) {
+        setAlerts((current) => [
+          ...current,
+          ...outcome.newAlerts,
+        ]);
+      }
+    },
+    [medicines, users],
+  );
 
   const value = useMemo<AppContextValue>(
     () => ({
       ready,
       loadError,
       currentUser,
-      currentRole: currentUser ? currentUser.role : null,
+      currentRole: currentUser
+        ? currentUser.role
+        : null,
       rememberedEmail,
       users,
       medicines,
@@ -718,7 +1482,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       alerts,
       relationships,
       avatars,
-      chat: currentUser ? chat.filter((message) => message.userId === currentUser.id) : [],
+      chat: currentUser
+        ? chat.filter(
+            (message) =>
+              message.userId ===
+              currentUser.id,
+          )
+        : [],
       login,
       logout,
       signup,
@@ -777,5 +1547,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+    </AppContext.Provider>
+  );
 }
